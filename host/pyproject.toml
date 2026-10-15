@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "smalltv-live"
 version = "1.0.0"
 description = "Renders a live clock, weather and Claude usage screen and streams it to the SmallTV Live firmware."
-readme = "../README.md"
+readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
 dependencies = ["pillow>=11.0,<13"]
