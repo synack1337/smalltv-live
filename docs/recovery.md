@@ -14,6 +14,12 @@ The TV restarts into the stock firmware. If it can't join your Wi-Fi, it opens i
 
 Same steps with a newer `smalltv-live-firmware.bin`: power-cycle, then upload within 10 minutes. `http://<tv-ip>/` shows whether the upload window is open.
 
+From a script, add the `X-SmallTV-Live` header (see [security.md](security.md)):
+
+```sh
+curl -H 'X-SmallTV-Live: 1' -F firmware=@smalltv-live-firmware.bin http://<tv-ip>/update
+```
+
 ## The TV doesn't come up
 
 - **Amber bars and 192.168.4.1 on screen:** setup mode. Join the **SmallTV-Live** network and set Wi-Fi at `http://192.168.4.1/wifi`. Firmware upload also works there. If your usual network was only down for a while (a power cut), the TV goes back to it on its own within a couple of minutes of it returning.

@@ -12,7 +12,13 @@ SmallTV Live is a display for a trusted home network. This page lists what the f
 | Wi-Fi settings `/wifi` | **setup mode**, or anyone on the LAN **during the first 10 minutes after power-on** | Outside those, the page is refused, so nobody can move the TV to another network without power-cycling it. Nearby network names shown on the page are HTML-escaped. |
 | Setup access point | open, only when the stored Wi-Fi fails at boot | Same behaviour as the stock firmware's setup mode. The saved network is retried every two minutes and the TV leaves setup mode once it connects. |
 
-**Cross-site requests.** Changing Wi-Fi and uploading firmware are refused unless the request is addressed to the TV itself (its IP, `smalltv.local` or the setup address in the `Host` header, which defeats DNS rebinding) and, when a browser sends them, `Origin` names the TV and `Sec-Fetch-Site` is not `cross-site`. So a web page you have open elsewhere can't post a form to the TV during its 10 minute window. Command line tools such as `curl` send no `Origin` and still work.
+**Cross-site requests.** Changing Wi-Fi and uploading firmware need all of:
+
+- the request is addressed to the TV itself (its IP, `smalltv.local` or the setup address in the `Host` header), which defeats DNS rebinding;
+- a browser's `Origin`, when sent, names the TV, and `Sec-Fetch-Site` is not `cross-site`;
+- the request carries either the per-boot random token embedded in the TV's own forms, or the `X-SmallTV-Live` header. Another site can't read the token, and browsers don't send custom headers cross-site without a CORS preflight, which the TV never approves.
+
+So a web page you have open elsewhere can't post to the TV during its 10 minute window, even in browsers that send no `Origin`. Scripts add the header: `curl -H 'X-SmallTV-Live: 1' -F firmware=@smalltv-live-firmware.bin http://<tv-ip>/update`.
 
 The stock GeekMagic firmware also has no authentication on its web pages and accepts firmware uploads at any time, so this is a tighter default than stock.
 

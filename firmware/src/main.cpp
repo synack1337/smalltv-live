@@ -325,6 +325,17 @@ bool hostIsThisTv(String host) {
   return host == ip || host == F("smalltv.local") || host == F("smalltv");
 }
 
+// Per-boot secret for the TV's own forms. Another site can't read it (same-origin policy), so a forged
+// form post can't include it. Scripts use the X-SmallTV-Live header instead, which a browser won't send
+// cross-site without a CORS preflight that this server never approves.
+String formToken;
+
+void makeFormToken() {
+  char buf[33];
+  for (int i = 0; i < 4; i++) snprintf(buf + i * 8, 9, "%08x", ESP.random());
+  formToken = buf;
+}
+
 bool requestIsSameOrigin() {
   if (!hostIsThisTv(web.hostHeader())) return false;
   if (web.header(F("Sec-Fetch-Site")) == F("cross-site")) return false;
@@ -332,6 +343,14 @@ bool requestIsSameOrigin() {
   if (origin.length() == 0) return true;
   if (!origin.startsWith(F("http://"))) return false;
   return hostIsThisTv(origin.substring(7));
+}
+
+// State-changing requests: addressed to this TV, not cross-site, and carrying the form token or the
+// scripting header.
+bool requestTrusted() {
+  if (!requestIsSameOrigin()) return false;
+  if (web.hasHeader(F("X-SmallTV-Live"))) return true;
+  return formToken.length() && web.arg(F("t")) == formToken;
 }
 
 String htmlEscape(const String& in) {
@@ -379,8 +398,9 @@ void sendWifiForm() {
   page.reserve(1600);
   page += F("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
             "<title>SmallTV Live WiFi</title>"
-            "<form method=post action=/wifi style='font:16px system-ui,sans-serif;max-width:320px;margin:40px auto'>"
+            "<form method=post style='font:16px system-ui,sans-serif;max-width:320px;margin:40px auto'>"
             "<h3>WiFi network (2.4 GHz)</h3>");
+  page.replace(F("<form method=post"), String(F("<form method=post action='/wifi?t=")) + formToken + "'");
   if (!setupMode) {
     page += F("<p>Connected to <b>");
     page += htmlEscape(WiFi.SSID());
@@ -412,8 +432,8 @@ void handleWifi() {
     sendWifiForm();
     return;
   }
-  if (!requestIsSameOrigin()) {
-    web.send(403, F("text/plain"), F("Cross-site request refused."));
+  if (!requestTrusted()) {
+    web.send(403, F("text/plain"), F("Request refused: reload the page and try again."));
     return;
   }
   const String ssid = web.arg("s");
@@ -445,14 +465,16 @@ void handleUpdateForm() {
     web.send(403, F("text/plain"), F("Firmware upload is closed. Power-cycle the TV and upload within 10 minutes."));
     return;
   }
-  web.send_P(200, "text/html; charset=utf-8", UPDATE_FORM);
+  String page = FPSTR(UPDATE_FORM);
+  page.replace(F("<form method=post"), String(F("<form method=post action='/update?t=")) + formToken + "'");
+  web.send(200, F("text/html; charset=utf-8"), page);
 }
 
 void handleUpdateUpload() {
   HTTPUpload& upload = web.upload();
   if (upload.status == UPLOAD_FILE_START) {
     updateError = "";
-    updateRejected = !maintenanceWindowOpen() || !requestIsSameOrigin();
+    updateRejected = !maintenanceWindowOpen() || !requestTrusted();
     if (updateRejected) return;
     dropHost();
     WiFiUDP::stopAll();
@@ -475,7 +497,7 @@ void handleUpdateUpload() {
 void handleUpdateDone() {
   if (updateRejected) {
     web.send(403, F("text/plain"), maintenanceWindowOpen()
-        ? F("Cross-site request refused.")
+        ? F("Request refused: reload the update page and try again.")
         : F("Firmware upload is closed. Power-cycle the TV and upload within 10 minutes."));
     return;
   }
@@ -549,7 +571,8 @@ void setup() {
   web.on("/update", HTTP_GET, handleUpdateForm);
   web.on("/update", HTTP_POST, handleUpdateDone, handleUpdateUpload);
   web.onNotFound([]() { web.send(404, F("text/plain"), F("Not found")); });
-  web.collectHeaders("Origin", "Sec-Fetch-Site");
+  web.collectHeaders("Origin", "Sec-Fetch-Site", "X-SmallTV-Live");
+  makeFormToken();
   web.begin();
 
   streamServer.begin();
