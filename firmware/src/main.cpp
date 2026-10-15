@@ -311,6 +311,29 @@ void pumpStream() {
 bool maintenanceWindowOpen() { return millis() < MAINTENANCE_WINDOW_MS; }
 bool wifiChangeAllowed() { return setupMode || maintenanceWindowOpen(); }
 
+// Defence against cross-site requests from a web page the user happens to have open:
+//  - the Host header must name the TV itself (blocks DNS rebinding, where a hostile name points at the TV)
+//  - a browser's Origin header, when sent, must be this TV
+//  - requests a browser marks as cross-site are refused
+// Command line tools send neither Origin nor Sec-Fetch-Site and are allowed.
+bool hostIsThisTv(String host) {
+  host.toLowerCase();
+  const int colon = host.indexOf(':');
+  if (colon >= 0) host.remove(colon);
+  if (host.endsWith(".")) host.remove(host.length() - 1);
+  const String ip = setupMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+  return host == ip || host == F("smalltv.local") || host == F("smalltv");
+}
+
+bool requestIsSameOrigin() {
+  if (!hostIsThisTv(web.hostHeader())) return false;
+  if (web.header(F("Sec-Fetch-Site")) == F("cross-site")) return false;
+  const String origin = web.header(F("Origin"));
+  if (origin.length() == 0) return true;
+  if (!origin.startsWith(F("http://"))) return false;
+  return hostIsThisTv(origin.substring(7));
+}
+
 String htmlEscape(const String& in) {
   String out;
   out.reserve(in.length() + 8);
@@ -389,6 +412,10 @@ void handleWifi() {
     sendWifiForm();
     return;
   }
+  if (!requestIsSameOrigin()) {
+    web.send(403, F("text/plain"), F("Cross-site request refused."));
+    return;
+  }
   const String ssid = web.arg("s");
   const String pass = web.arg("p");
   if (ssid.length() == 0 || ssid.length() > 32 || pass.length() > 64 || (pass.length() > 0 && pass.length() < 8)) {
@@ -425,7 +452,7 @@ void handleUpdateUpload() {
   HTTPUpload& upload = web.upload();
   if (upload.status == UPLOAD_FILE_START) {
     updateError = "";
-    updateRejected = !maintenanceWindowOpen();
+    updateRejected = !maintenanceWindowOpen() || !requestIsSameOrigin();
     if (updateRejected) return;
     dropHost();
     WiFiUDP::stopAll();
@@ -447,7 +474,9 @@ void handleUpdateUpload() {
 
 void handleUpdateDone() {
   if (updateRejected) {
-    web.send(403, F("text/plain"), F("Firmware upload is closed. Power-cycle the TV and upload within 10 minutes."));
+    web.send(403, F("text/plain"), maintenanceWindowOpen()
+        ? F("Cross-site request refused.")
+        : F("Firmware upload is closed. Power-cycle the TV and upload within 10 minutes."));
     return;
   }
   if (updateError.length()) {
@@ -520,6 +549,7 @@ void setup() {
   web.on("/update", HTTP_GET, handleUpdateForm);
   web.on("/update", HTTP_POST, handleUpdateDone, handleUpdateUpload);
   web.onNotFound([]() { web.send(404, F("text/plain"), F("Not found")); });
+  web.collectHeaders("Origin", "Sec-Fetch-Site");
   web.begin();
 
   streamServer.begin();

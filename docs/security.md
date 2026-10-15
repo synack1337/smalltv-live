@@ -12,6 +12,8 @@ SmallTV Live is a display for a trusted home network. This page lists what the f
 | Wi-Fi settings `/wifi` | **setup mode**, or anyone on the LAN **during the first 10 minutes after power-on** | Outside those, the page is refused, so nobody can move the TV to another network without power-cycling it. Nearby network names shown on the page are HTML-escaped. |
 | Setup access point | open, only when the stored Wi-Fi fails at boot | Same behaviour as the stock firmware's setup mode. The saved network is retried every two minutes and the TV leaves setup mode once it connects. |
 
+**Cross-site requests.** Changing Wi-Fi and uploading firmware are refused unless the request is addressed to the TV itself (its IP, `smalltv.local` or the setup address in the `Host` header, which defeats DNS rebinding) and, when a browser sends them, `Origin` names the TV and `Sec-Fetch-Site` is not `cross-site`. So a web page you have open elsewhere can't post a form to the TV during its 10 minute window. Command line tools such as `curl` send no `Origin` and still work.
+
 The stock GeekMagic firmware also has no authentication on its web pages and accepts firmware uploads at any time, so this is a tighter default than stock.
 
 What an attacker on your LAN can do: show other images on the TV, and flash firmware or change its Wi-Fi if they can make it restart (for example by cutting its power) and reach it in the next 10 minutes. Someone within Wi-Fi range of a TV that is in setup mode can do the same through the open SmallTV-Live network. Keep the TV on a network you trust, or on a separate IoT network.
