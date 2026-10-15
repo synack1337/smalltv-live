@@ -70,7 +70,16 @@ String updateError;
 
 // ------------------------------------------------------------------ panel
 
+// A chip-select edge resets the panel's serial interface, so a stray clock edge (from pin setup at
+// power-on, for example) can't leave it out of step with the byte stream.
+inline void panelSelect() {
+  digitalWrite(PIN_CS, HIGH);
+  delayMicroseconds(1);
+  digitalWrite(PIN_CS, LOW);
+}
+
 inline void panelCommand(uint8_t c) {
+  panelSelect();
   digitalWrite(PIN_DC, LOW);
   SPI.write(c);
   digitalWrite(PIN_DC, HIGH);
@@ -113,15 +122,17 @@ void panelInit() {
   pinMode(PIN_DC, OUTPUT);
   digitalWrite(PIN_DC, HIGH);
   pinMode(PIN_CS, OUTPUT);
-  digitalWrite(PIN_CS, LOW);           // the panel is the only device on the bus
+  digitalWrite(PIN_CS, HIGH);
   pinMode(PIN_RST, OUTPUT);
-  digitalWrite(PIN_RST, HIGH); delay(5);
-  digitalWrite(PIN_RST, LOW); delay(20);
-  digitalWrite(PIN_RST, HIGH); delay(150);
+  digitalWrite(PIN_RST, HIGH);
 
+  // Set up SPI first, then reset the panel, so pin changes from SPI setup happen before the reset.
   SPI.begin();
   SPI.setFrequency(40000000);
   SPI.setDataMode(SPI_MODE3);
+  delay(50);                           // panel supply settles after a cold power-on
+  digitalWrite(PIN_RST, LOW); delay(20);
+  digitalWrite(PIN_RST, HIGH); delay(150);
 
   panelCommand(0x01); delay(150);                     // SWRESET
   panelCommand(0x11); delay(120);                     // SLPOUT
