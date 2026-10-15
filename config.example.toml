@@ -1,0 +1,30 @@
+# SmallTV Live configuration.
+# Copy to ~/.config/smalltv-live/config.toml and adjust. Every key is optional.
+
+[tv]
+host = "smalltv.local"       # or the IP address the TV shows on its status screen
+port = 7777
+
+[location]
+# Weather is shown only when both coordinates are set.
+# latitude = 51.5074
+# longitude = -0.1278
+timezone = "Europe/London"   # IANA name, also used for the clock
+
+[display]
+language = "en"              # "en" or "ro"
+fps = 10                     # 1 to 30
+brightness_day = 170         # 0 to 255
+brightness_night = 35
+night_start = 22             # hour the night brightness starts
+night_end = 7                # hour it ends
+
+[panel]
+# Only change these if colours look wrong on your unit.
+invert = true
+bgr = false
+
+[usage]
+# Written by `smalltv-live statusline` (see README, "Claude usage").
+cache = "~/.claude/rate_limits.json"
+stale_after_minutes = 20

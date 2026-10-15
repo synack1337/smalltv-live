@@ -1,0 +1,2 @@
+# Runtime dependency of the host package, pinned for reproducible installs and dependency scanning.
+pillow==12.3.0

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>io.github.synack1337.smalltv-live</string>
+  <key>CFBundleName</key><string>SmallTV Live</string>
+  <key>CFBundleDisplayName</key><string>SmallTV Live</string>
+  <key>CFBundleExecutable</key><string>smalltv-live</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>1.0.0</string>
+  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>LSUIElement</key><true/>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSLocalNetworkUsageDescription</key><string>SmallTV Live streams its screen to your SmallTV on the local network.</string>
+</dict>
+</plist>

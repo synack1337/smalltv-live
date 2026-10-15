@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smalltv-live"
+version = "1.0.0"
+description = "Renders a live clock, weather and Claude usage screen and streams it to the SmallTV Live firmware."
+readme = "../README.md"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.11"
+dependencies = ["pillow>=11.0,<13"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: System :: Hardware",
+]
+
+[project.scripts]
+smalltv-live = "smalltv_live.__main__:main"
+
+[tool.setuptools]
+packages = ["smalltv_live"]
