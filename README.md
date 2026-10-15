@@ -49,9 +49,19 @@ Other SmallTV models use different hardware or flash layouts and are not support
 
 2. **Flash it from the stock web page.** Open `http://<tv-ip>/update` (the IP is shown on the TV), choose the file and press **Update**. The TV restarts after a few seconds. No cable or opening the case is needed.
 
-3. **Wi-Fi.** The firmware joins the network the stock firmware was using. If it can't, it opens an open access point called **SmallTV-Live**: join it from your phone, browse to `http://192.168.4.1/wifi` and enter your 2.4 GHz network.
+3. **Wi-Fi.** The firmware joins the network the stock firmware was using. If it can't, it opens an open access point called **SmallTV-Live**: join it from your phone, browse to `http://192.168.4.1/wifi`, pick your 2.4 GHz network and enter its password.
 
 While no host is connected, the TV shows its IP address between two bars: green when it's on your network, amber in setup mode. Its status page is at `http://<tv-ip>/` and it also answers to `smalltv.local`.
+
+### Changing the Wi-Fi network
+
+No flashing or computer needed:
+
+- **The old network is gone** (new router, moved house): power the TV on. After 30 seconds without its network it shows amber bars and opens **SmallTV-Live**. Join it from your phone, open `http://192.168.4.1/wifi` and choose the new network.
+- **The old network still works and you want to switch:** unplug the TV and plug it back in, then within 10 minutes open `http://<tv-ip>/wifi` from a device on the current network.
+- **After a power cut** the TV may start before your router and fall back to setup mode. It keeps trying the saved network every two minutes and returns to normal on its own once the router is back.
+
+If the TV can't join the network you entered, it opens SmallTV-Live again after 30 seconds so you can correct it.
 
 ## Install the host
 

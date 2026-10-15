@@ -16,7 +16,7 @@ Same steps with a newer `smalltv-live-firmware.bin`: power-cycle, then upload wi
 
 ## The TV doesn't come up
 
-- **Amber bars and 192.168.4.1 on screen:** setup mode. Join the **SmallTV-Live** network and set Wi-Fi at `http://192.168.4.1/wifi`. Firmware upload also works there.
+- **Amber bars and 192.168.4.1 on screen:** setup mode. Join the **SmallTV-Live** network and set Wi-Fi at `http://192.168.4.1/wifi`. Firmware upload also works there. If your usual network was only down for a while (a power cut), the TV goes back to it on its own within a couple of minutes of it returning.
 - **Green bars and an IP, nothing else:** the TV is fine and waiting for the host. Check the host log and, on macOS, the Local Network permission.
 - **Black screen and no network:** use the serial header.
 

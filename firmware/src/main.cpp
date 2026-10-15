@@ -34,11 +34,13 @@ constexpr uint16_t WIDTH = 240;
 constexpr uint16_t HEIGHT = 240;
 constexpr uint16_t STREAM_PORT = 7777;
 constexpr uint8_t DEFAULT_BACKLIGHT = 160;
-constexpr uint32_t UPDATE_WINDOW_MS = 10UL * 60UL * 1000UL;   // firmware uploads only after power-on
+constexpr uint32_t MAINTENANCE_WINDOW_MS = 10UL * 60UL * 1000UL;   // firmware upload and WiFi change after power-on
 constexpr uint32_t HOST_SILENT_MS = 15UL * 1000UL;          // drop a host that sends nothing
 constexpr uint32_t IDLE_SCREEN_MS = 2UL * 60UL * 1000UL;      // host silent this long: show the IP
 constexpr uint32_t WIFI_JOIN_MS = 30UL * 1000UL;
 constexpr uint32_t WIFI_RETRY_MS = 30UL * 1000UL;
+constexpr uint32_t SETUP_RETRY_EVERY_MS = 2UL * 60UL * 1000UL;   // setup mode: try the saved network again
+constexpr uint32_t SETUP_RETRY_FOR_MS = 15UL * 1000UL;
 constexpr const char* HOSTNAME = "smalltv";
 constexpr const char* SETUP_AP = "SmallTV-Live";
 
@@ -53,6 +55,8 @@ WiFiServer streamServer(STREAM_PORT);
 WiFiClient host;
 
 bool setupMode = false;
+String savedSsid;                    // network stored in the SDK config at boot
+String savedPass;
 uint8_t backlight = DEFAULT_BACKLIGHT;
 uint32_t lastFrameMs = 0;
 uint32_t framesShown = 0;
@@ -302,7 +306,26 @@ void pumpStream() {
 
 // ------------------------------------------------------------------ web
 
-bool updateWindowOpen() { return millis() < UPDATE_WINDOW_MS; }
+// Power-cycling the TV opens a 10 minute window for firmware upload and WiFi changes: physical access
+// to the TV is the authorisation.
+bool maintenanceWindowOpen() { return millis() < MAINTENANCE_WINDOW_MS; }
+bool wifiChangeAllowed() { return setupMode || maintenanceWindowOpen(); }
+
+String htmlEscape(const String& in) {
+  String out;
+  out.reserve(in.length() + 8);
+  for (const char c : in) {
+    switch (c) {
+      case '&': out += F("&amp;"); break;
+      case '<': out += F("&lt;"); break;
+      case '>': out += F("&gt;"); break;
+      case '"': out += F("&quot;"); break;
+      case '\'': out += F("&#39;"); break;
+      default: out += c;
+    }
+  }
+  return out;
+}
 
 void handleStatus() {
   String s;
@@ -320,40 +343,61 @@ void handleStatus() {
   s += F("backlight: "); s += backlight; s += '\n';
   s += F("free heap: "); s += ESP.getFreeHeap(); s += '\n';
   s += F("uptime: "); s += millis() / 1000; s += F(" s\n");
-  s += F("firmware upload: ");
-  s += updateWindowOpen() ? F("open (closes 10 minutes after power-on)") : F("closed (power-cycle the TV to open it)");
-  s += F("\n\n/update  firmware upload\n");
-  if (setupMode) s += F("/wifi    WiFi settings\n");
+  s += F("firmware upload and WiFi change: ");
+  s += wifiChangeAllowed() ? F("open") : F("closed (power-cycle the TV, then use them within 10 minutes)");
+  s += F("\n\n/update  firmware upload\n/wifi    WiFi network\n");
   web.send(200, F("text/plain; charset=utf-8"), s);
 }
 
-const char WIFI_FORM[] PROGMEM =
-    "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
-    "<title>SmallTV Live</title>"
-    "<form method=post action=/wifi style='font:16px system-ui,sans-serif;max-width:320px;margin:40px auto'>"
-    "<h3>WiFi (2.4 GHz)</h3>"
-    "<p>Network<br><input name=s maxlength=32 required style='width:100%'></p>"
-    "<p>Password<br><input name=p type=password maxlength=64 style='width:100%'></p>"
-    "<p><button>Save and restart</button></p></form>";
-
-// Only offered in setup mode, so nobody on the network can move the TV to another WiFi.
-void handleWifi() {
+// Network page. Nearby network names come from the air, so they are escaped before going into HTML.
+void sendWifiForm() {
+  const int found = WiFi.scanNetworks();
+  String page;
+  page.reserve(1600);
+  page += F("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
+            "<title>SmallTV Live WiFi</title>"
+            "<form method=post action=/wifi style='font:16px system-ui,sans-serif;max-width:320px;margin:40px auto'>"
+            "<h3>WiFi network (2.4 GHz)</h3>");
   if (!setupMode) {
-    web.send(404, F("text/plain"), F("Not found"));
+    page += F("<p>Connected to <b>");
+    page += htmlEscape(WiFi.SSID());
+    page += F("</b>.</p>");
+  }
+  page += F("<p>Network<br><input name=s list=nets maxlength=32 required autocomplete=off style='width:100%'>"
+            "<datalist id=nets>");
+  for (int i = 0; i < found && i < 20; i++) {
+    const String name = WiFi.SSID(i);
+    if (name.length() == 0) continue;
+    page += F("<option value=\"");
+    page += htmlEscape(name);
+    page += F("\">");
+  }
+  WiFi.scanDelete();
+  page += F("</datalist></p><p>Password<br><input name=p type=password maxlength=64 style='width:100%'></p>"
+            "<p><button>Save and restart</button></p>"
+            "<p style='font-size:13px;color:#666'>If the TV can't join the network, it opens the SmallTV-Live "
+            "network again after 30 seconds.</p></form>");
+  web.send(200, F("text/html; charset=utf-8"), page);
+}
+
+void handleWifi() {
+  if (!wifiChangeAllowed()) {
+    web.send(403, F("text/plain"), F("WiFi settings are closed. Power-cycle the TV and change them within 10 minutes."));
     return;
   }
   if (web.method() != HTTP_POST) {
-    web.send_P(200, "text/html; charset=utf-8", WIFI_FORM);
+    sendWifiForm();
     return;
   }
   const String ssid = web.arg("s");
   const String pass = web.arg("p");
-  if (ssid.length() == 0 || ssid.length() > 32 || pass.length() > 64) {
-    web.send(400, F("text/plain"), F("Invalid network name or password"));
+  if (ssid.length() == 0 || ssid.length() > 32 || pass.length() > 64 || (pass.length() > 0 && pass.length() < 8)) {
+    web.send(400, F("text/plain"), F("Invalid network name or password (WPA passwords are 8 to 64 characters)."));
     return;
   }
-  web.send(200, F("text/plain"), F("Saved. Restarting..."));
+  web.send(200, F("text/plain"), F("Saved. The TV restarts and joins the new network."));
   delay(300);
+  dropHost();
   WiFi.persistent(true);              // stored in the SDK config, where the stock firmware keeps it
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), pass.c_str());
@@ -370,7 +414,7 @@ const char UPDATE_FORM[] PROGMEM =
     "<p><button>Update</button></p></form>";
 
 void handleUpdateForm() {
-  if (!updateWindowOpen()) {
+  if (!maintenanceWindowOpen()) {
     web.send(403, F("text/plain"), F("Firmware upload is closed. Power-cycle the TV and upload within 10 minutes."));
     return;
   }
@@ -381,7 +425,7 @@ void handleUpdateUpload() {
   HTTPUpload& upload = web.upload();
   if (upload.status == UPLOAD_FILE_START) {
     updateError = "";
-    updateRejected = !updateWindowOpen();
+    updateRejected = !maintenanceWindowOpen();
     if (updateRejected) return;
     dropHost();
     WiFiUDP::stopAll();
@@ -422,14 +466,39 @@ void startWifi() {
   WiFi.mode(WIFI_STA);
   WiFi.hostname(HOSTNAME);
   WiFi.begin();                       // credentials stored in the SDK config
+  savedSsid = WiFi.SSID();
+  savedPass = WiFi.psk();
   const uint32_t start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < WIFI_JOIN_MS) delay(250);
   if (WiFi.status() != WL_CONNECTED) {
+    // Setup mode. The saved network is still retried now and then (see retrySavedNetwork), so a TV that
+    // booted before the router after a power cut goes back to normal on its own.
     setupMode = true;
-    WiFi.mode(WIFI_AP);
+    wifi_station_disconnect();
+    WiFi.setAutoReconnect(false);
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(SETUP_AP);
   }
   WiFi.setSleepMode(WIFI_NONE_SLEEP);   // lower latency while streaming
+}
+
+// In setup mode, try the saved network for 15 s every 2 minutes; restart into normal mode once it works.
+// Between attempts the station is idle so phones connected to the setup network aren't disturbed.
+void retrySavedNetwork() {
+  static uint32_t attemptStart = 0;
+  static bool attempting = false;
+  if (savedSsid.length() == 0) return;
+  if (!attempting && millis() - attemptStart > SETUP_RETRY_EVERY_MS) {
+    attempting = true;
+    attemptStart = millis();
+    WiFi.begin(savedSsid.c_str(), savedPass.c_str());
+  } else if (attempting && WiFi.status() == WL_CONNECTED) {
+    ESP.restart();
+  } else if (attempting && millis() - attemptStart > SETUP_RETRY_FOR_MS) {
+    attempting = false;
+    attemptStart = millis();
+    wifi_station_disconnect();
+  }
 }
 
 }  // namespace
@@ -471,6 +540,7 @@ void loop() {
     streamedSinceIdle = false;
   }
 
+  if (setupMode) retrySavedNetwork();
   static uint32_t lastRetry = 0;
   if (!setupMode && WiFi.status() != WL_CONNECTED && millis() - lastRetry > WIFI_RETRY_MS) {
     lastRetry = millis();
