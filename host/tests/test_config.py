@@ -34,7 +34,7 @@ class ConfigTest(unittest.TestCase):
     def test_rejects_bad_values(self):
         for text in ('[display]\nlanguage = "de"\n', '[display]\nfps = 0\n', '[display]\nnight_start = 24\n',
                      '[location]\ntimezone = "Mars/Base"\n', '[location]\nlatitude = 91.0\nlongitude = 0.0\n',
-                     '[tv]\nport = 70000\n', '[tv]\nhots = "x"\n', '[nope]\n', 'not toml ='):
+                     '[tv]\nport = 70000\n', '[tv]\nhost = "-oProxy=x"\n', '[tv]\nhost = "a b"\n', '[tv]\nhots = "x"\n', '[nope]\n', 'not toml ='):
             with self.subTest(text=text), self.assertRaises(ConfigError):
                 _load(text)
 

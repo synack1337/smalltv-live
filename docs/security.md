@@ -25,6 +25,18 @@ The firmware stores no secrets of its own. Wi-Fi credentials live in the ESP8266
 - `statusline --then` runs the given command without a shell, with a 10 second timeout.
 - The config file is parsed with `tomllib`, unknown keys are rejected and every value is range-checked.
 
+## Static analysis notes
+
+Snyk Code reports four findings that are intended behaviour, not vulnerabilities:
+
+| Finding | Why it stands |
+|---|---|
+| Command injection, `host/smalltv_live/__main__.py` (`statusline --then`) | Runs the user's own previous status line command, from their own Claude Code settings, so that it keeps working. It is split with `shlex` and run without a shell, with a timeout. |
+| Path traversal, `host/smalltv_live/config.py` | The config path comes from the user's own environment (`$SMALLTV_LIVE_CONFIG`, `$XDG_CONFIG_HOME`). The program runs as that user, so no privilege boundary is crossed. |
+| Path traversal, `macos/launcher.c` | The log path is built from `$HOME`, which must be absolute; the file is opened with `O_NOFOLLOW`, so a symlink at that path is refused. |
+
+Dependencies are pinned in `host/requirements.txt` and watched by Dependabot; GitHub Actions are pinned to commit SHAs.
+
 ## Reporting
 
 See [SECURITY.md](../SECURITY.md).

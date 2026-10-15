@@ -28,10 +28,13 @@ static void forward(int sig) {
 
 int main(void) {
     const char *home = getenv("HOME");
-    if (home) {
+    if (home && home[0] == '/') {
         char log[1024];
-        snprintf(log, sizeof log, "%s/Library/Logs/SmallTV Live.log", home);
-        int fd = open(log, O_WRONLY | O_CREAT | O_APPEND, 0600);
+        int n = snprintf(log, sizeof log, "%s/Library/Logs/SmallTV Live.log", home);
+        /* HOME belongs to the user running the app; O_NOFOLLOW refuses a symlink planted at the log path. */
+        int fd = (n > 0 && (size_t)n < sizeof log)
+                     ? open(log, O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW | O_CLOEXEC, 0600)
+                     : -1;
         if (fd >= 0) {
             dup2(fd, STDOUT_FILENO);
             dup2(fd, STDERR_FILENO);

@@ -6,11 +6,24 @@ Every key is optional; see config.example.toml for the full list.
 """
 from __future__ import annotations
 
+import ipaddress
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+
+_HOSTNAME = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?$")
+
+
+def _valid_host(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return bool(_HOSTNAME.match(host))
 
 
 class ConfigError(ValueError):
@@ -76,6 +89,7 @@ class Config:
 def default_path() -> Path:
     if os.environ.get("SMALLTV_LIVE_CONFIG"):
         return Path(os.environ["SMALLTV_LIVE_CONFIG"]).expanduser()
+    # The config location comes from the user's own environment; there is no privilege boundary here.
     base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
     return base / "smalltv-live" / "config.toml"
 
@@ -108,6 +122,8 @@ def _validate(cfg: Config) -> None:
             raise ConfigError(f"display.{key} must be an hour, 0 to 23")
     if loc.has_coordinates and not (-90 <= loc.latitude <= 90 and -180 <= loc.longitude <= 180):
         raise ConfigError("location.latitude/longitude out of range")
+    if not isinstance(cfg.tv.host, str) or not _valid_host(cfg.tv.host):
+        raise ConfigError("tv.host must be a hostname or an IP address")
     if not 1 <= cfg.tv.port <= 65535:
         raise ConfigError("tv.port must be a TCP port")
     try:

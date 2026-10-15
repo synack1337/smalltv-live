@@ -20,6 +20,7 @@ from PIL import Image, ImageChops
 WIDTH = HEIGHT = 240
 BAND = 16                   # rows per diff band
 ACK_TIMEOUT = 3.0
+SEND_TIMEOUT = 10.0
 
 # ------------------------------------------------------------------ RGB565
 
@@ -107,11 +108,12 @@ class Link:
         try:
             self._sock = socket.create_connection((self.host, self.port), timeout=5)
             self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            self._sock.settimeout(None)
+            self._sock.settimeout(SEND_TIMEOUT)     # a stalled TV must not block the host forever
         except OSError as exc:
             if sys.platform != "darwin" or exc.errno != errno.EHOSTUNREACH or not os.path.exists("/usr/bin/nc"):
                 raise
-            self._nc = subprocess.Popen(["/usr/bin/nc", self.host, str(self.port)], stdin=subprocess.PIPE,
+            # "--" ends nc's options; the host is also validated as a hostname or IP address by the config
+            self._nc = subprocess.Popen(["/usr/bin/nc", "--", self.host, str(self.port)], stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
 
     def close(self) -> None:
