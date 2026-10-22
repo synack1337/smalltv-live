@@ -9,7 +9,7 @@ description = "Renders a live clock, weather and Claude usage screen and streams
 readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
-dependencies = ["pillow>=11.0,<13"]
+dependencies = ["pillow>=11.0,<14"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: MacOS",
